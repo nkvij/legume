@@ -1,24 +1,27 @@
-import numpy as np
-from scipy.linalg import block_diag
-from scipy.sparse import coo_matrix as coo  # Older versions of Scipy have coo_matrix attribute only
-
 import time
 from itertools import zip_longest
 from typing import Optional
 
-from .slab_modes import guided_modes, rad_modes
-from . import matrix_elements
+import numpy as np
+from scipy.linalg import block_diag
+from scipy.sparse import (
+    coo_matrix as
+    coo,  # Older versions of Scipy have coo_matrix attribute only
+)
+
 from legume.backend import backend as bd
 from legume.print_backend import print_backend as prbd
-from legume.utils import get_value, ftinv, find_nearest, z_to_lind
-from legume.print_utils import verbose_print, load_bar
+from legume.print_utils import verbose_print
+from legume.utils import find_nearest, ftinv, get_value, z_to_lind
+
+from . import matrix_elements
+from .slab_modes import guided_modes, rad_modes
 
 
 class GuidedModeExp(object):
     """
     Main simulation class of the guided-mode expansion.
     """
-
     def __init__(self, phc, gmax=3., truncate_g='abs'):
         """Initialize the guided-mode expansion.
         
@@ -193,12 +196,14 @@ class GuidedModeExp(object):
         # for Toeplitz-Block-Toeplitz inversion of the permittivity in the main
         # code. This might be faster, but doesn't have a nice rotation symmetry
         # in the case of e.g. hexagonal lattice.
-        inds1 = np.tile(np.arange(-n1max, n1max + 1), (2*n2max + 1, 1))  \
-                         .reshape((2*n2max + 1)*(2*n1max + 1), order='F')
+        inds1 = np.tile(np.arange(-n1max, n1max + 1),
+                        (2 * n2max + 1, 1)).reshape(
+                            (2 * n2max + 1) * (2 * n1max + 1), order='F')
         inds2 = np.tile(np.arange(-n2max, n2max + 1), 2 * n1max + 1)
 
-        gvec = self.phc.lattice.b1[:, np.newaxis].dot(inds1[np.newaxis, :]) + \
-                self.phc.lattice.b2[:, np.newaxis].dot(inds2[np.newaxis, :])
+        gvec = self.phc.lattice.b1[:, np.newaxis].dot(
+            inds1[np.newaxis, :]) + self.phc.lattice.b2[:, np.newaxis].dot(
+                inds2[np.newaxis, :])
 
         # Save the reciprocal lattice vectors
         self._gvec = gvec
@@ -217,15 +222,17 @@ class GuidedModeExp(object):
         n2max = np.int_(
             (4 * np.pi * self.gmax) / np.linalg.norm(self.phc.lattice.b2))
 
-        inds1 = np.tile(np.arange(-n1max, n1max + 1), (2*n2max + 1, 1))  \
-                         .reshape((2*n2max + 1)*(2*n1max + 1), order='F')
+        inds1 = np.tile(np.arange(-n1max, n1max + 1),
+                        (2 * n2max + 1, 1)).reshape(
+                            (2 * n2max + 1) * (2 * n1max + 1), order='F')
         inds2 = np.tile(np.arange(-n2max, n2max + 1), 2 * n1max + 1)
 
         # Add dimension to indexes arrays
         #inds1 = inds1[np.newaxis, :]
         #inds2 = inds2[np.newaxis, :]
-        gvec = self.phc.lattice.b1[:, np.newaxis].dot(inds1[np.newaxis, :]) + \
-                self.phc.lattice.b2[:, np.newaxis].dot(inds2[np.newaxis, :])
+        gvec = self.phc.lattice.b1[:, np.newaxis].dot(
+            inds1[np.newaxis, :]) + self.phc.lattice.b2[:, np.newaxis].dot(
+                inds2[np.newaxis, :])
         gnorm = np.sqrt(gvec[0, :]**2 + gvec[1, :]**2)
 
         # Avoid to cut with gmax equal to one of the |G|
@@ -287,7 +294,6 @@ class GuidedModeExp(object):
         Variable 'indmode' stores the indexes of 'gk' over which a guided
         mode solution was found
         """
-
         def interp_coeff(coeffs, il, ic, indmode, gs):
             """
             Interpolate the A/B coefficient (ic = 0/1) in layer number il
@@ -303,8 +309,7 @@ class GuidedModeExp(object):
             gs = self.g_array[ik][-len(omegas[ik][im]):]
             indmode = np.argwhere(gk > gs[0] - 1e-10).ravel()
             oms = bd.interp(gk[indmode], gs, bd.array(omegas[ik][im]))
-            e_a = self.eps_array if self.gradients == 'exact' \
-                                    else self.eps_array_val
+            e_a = self.eps_array if self.gradients == 'exact' else self.eps_array_val
             chis = self._get_chi(gk[indmode], oms, e_a)
 
             As, Bs = [], []
@@ -367,8 +372,9 @@ class GuidedModeExp(object):
         self.g_array.append(g_array)
         self.gmode_te = self.gmode_inds[np.remainder(self.gmode_inds, 2) == 0]
         self.gmode_tm = self.gmode_inds[np.remainder(self.gmode_inds, 2) != 0]
-        reshape_list = lambda x: [list(filter(lambda y: y is not None, i)) \
-                        for i in zip_longest(*x)]
+        reshape_list = lambda x: [
+            list(filter(lambda y: y is not None, i)) for i in zip_longest(*x)
+        ]
 
         if self.gradients == 'exact':
             (e_a, d_a) = (self.eps_array, self.d_array)
@@ -415,11 +421,12 @@ class GuidedModeExp(object):
         self.T2 = []
 
         for ind1 in range(n1max):
-            G2[:, ind1*n2max:(ind1+1)*n2max] = - self.gvec[:, [ind1*n2max]] + \
-                            self.gvec[:, range(n2max)]
+            G2[:, ind1 * n2max:(ind1 + 1) *
+               n2max] = -self.gvec[:, [ind1 * n2max]] + self.gvec[:,
+                                                                  range(n2max)]
 
-        for layer in [self.phc.claddings[0]] + self.phc.layers + \
-                            [self.phc.claddings[1]]:
+        for layer in [self.phc.claddings[0]
+                      ] + self.phc.layers + [self.phc.claddings[1]]:
             T1 = layer.compute_ft(G1)
             T2 = layer.compute_ft(G2)
 
@@ -476,8 +483,9 @@ class GuidedModeExp(object):
         num_unique = np.shape(unique)[1]
 
         # Unique g-vectors for calculting f-transform
-        gvec_unique = self.phc.lattice.b1[:, np.newaxis].dot(unique[0][np.newaxis, :]) + \
-                        self.phc.lattice.b2[:, np.newaxis].dot(unique[1][np.newaxis, :])
+        gvec_unique = self.phc.lattice.b1[:, np.newaxis].dot(
+            unique[0][np.newaxis, :]) + self.phc.lattice.b2[:, np.newaxis].dot(
+                unique[1][np.newaxis, :])
 
         # T1 stores FT of all possible delta_G
         self.T1 = []
@@ -486,8 +494,8 @@ class GuidedModeExp(object):
         self.T1_unique = []
         self.G1_unique = gvec_unique
 
-        layers = [self.phc.claddings[0]] + self.phc.layers + \
-                                [self.phc.claddings[1]]
+        layers = [self.phc.claddings[0]
+                  ] + self.phc.layers + [self.phc.claddings[1]]
 
         for layer in layers:
             """
@@ -559,8 +567,8 @@ class GuidedModeExp(object):
         gmode_include = []
         ik = 0 if self.gmode_compute.lower() == 'interp' else kind
         for mode in self.gmode_inds:
-            if (mode%2==0 and len(self.omegas_te[ik]) > mode//2) \
-                or (mode%2==1 and len(self.omegas_tm[ik]) > mode//2):
+            if (mode % 2 == 0 and len(self.omegas_te[ik]) > mode // 2) or (
+                    mode % 2 == 1 and len(self.omegas_tm[ik]) > mode // 2):
                 gmode_include.append(mode)
         if gmode_include == []:
             raise RuntimeError(
@@ -583,8 +591,8 @@ class GuidedModeExp(object):
 
         for im1 in range(self.gmode_include[-1].size):
             mode1 = self.gmode_include[-1][im1]
-            (indmode1, oms1, As1, Bs1, chis1) = \
-                        self._get_guided(gk, kind, mode1)
+            (indmode1, oms1, As1, Bs1,
+             chis1) = self._get_guided(gk, kind, mode1)
             modes_numg.append(indmode1.size)
             ind_modes.append(indmode1)
             if len(modes_numg) > 1:
@@ -593,8 +601,8 @@ class GuidedModeExp(object):
 
             for im2 in range(im1, self.gmode_include[-1].size):
                 mode2 = self.gmode_include[-1][im2]
-                (indmode2, oms2, As2, Bs2, chis2) = \
-                            self._get_guided(gk, kind, mode2)
+                (indmode2, oms2, As2, Bs2,
+                 chis2) = self._get_guided(gk, kind, mode2)
 
                 if mode1 % 2 + mode2 % 2 == 0:
                     mat_block = matrix_elements.mat_te_te(
@@ -639,8 +647,8 @@ class GuidedModeExp(object):
         """
         #print(np.round(bd.triu(mat, 1) + bd.transpose(bd.conj(bd.triu(mat, 1))) + bd.real(bd.diag(bd.diag(mat))),3))
         #print(f'Dimension = {np.shape(np.round(bd.triu(mat, 1) + bd.transpose(bd.conj(bd.triu(mat, 1))) + bd.real(bd.diag(bd.diag(mat))),3))}')
-        return bd.triu(mat, 1) + bd.transpose(bd.conj(bd.triu(mat, 1))) + \
-                bd.real(bd.diag(bd.diag(mat)))
+        return bd.triu(mat, 1) + bd.transpose(bd.conj(bd.triu(
+            mat, 1))) + bd.real(bd.diag(bd.diag(mat)))
 
     def compute_eps_inv(self, only_gmodes=False):
         """
@@ -670,8 +678,8 @@ class GuidedModeExp(object):
                 self.eps_mat = []
                 self.hom_layer = []
 
-                layers = [self.phc.claddings[0]] + self.phc.layers + \
-                                [self.phc.claddings[1]]
+                layers = [self.phc.claddings[0]
+                          ] + self.phc.layers + [self.phc.claddings[1]]
                 for it, T1 in enumerate(self.T1):
                     # We are iterating of layers
 
@@ -929,17 +937,18 @@ class GuidedModeExp(object):
                                  dtype=object).ravel()
         eps_array_val = bd.array(eps_array_val, dtype=bd.float)
         # Store an array of thickness of every layer (not including claddings)
-        d_array = bd.array(list(layer.d for layer in \
-            self.phc.layers), dtype=object).ravel()
+        d_array = bd.array(list(layer.d for layer in self.phc.layers),
+                           dtype=object).ravel()
         d_array = bd.array(d_array, dtype=float)
         # A separate array where the values are converted from ArrayBox to numpy
         # array, if using the 'autograd' backend.
-        d_array_val = np.array(list(get_value(layer.d) for layer in \
-            self.phc.layers), dtype=object).ravel()
+        d_array_val = np.array(list(
+            get_value(layer.d) for layer in self.phc.layers),
+                               dtype=object).ravel()
         d_array_val = bd.array(d_array_val, dtype=bd.float)
 
-        (self.eps_array_val, self.eps_array, self.d_array_val, self.d_array) = \
-                                (eps_array_val, eps_array, d_array_val, d_array)
+        (self.eps_array_val, self.eps_array, self.d_array_val,
+         self.d_array) = (eps_array_val, eps_array, d_array_val, d_array)
 
         # Initialize attributes for guided-mode storing
         self.g_array = []
@@ -1649,11 +1658,12 @@ class GuidedModeExp(object):
             omr = 2 * np.pi * freqs[kind, im]
             evec = eigvecs[kind][:, im]
             # Reciprocal vedctors within the radiative cone for the claddings
-            indmoder = [bd.argwhere(gk**2 <= \
-                    self.phc.claddings[0].eps_avg*omr**2).ravel(),
-                        bd.argwhere(gk**2 <= \
-                    self.phc.claddings[1].eps_avg*omr**2).ravel()
-                        ]
+            indmoder = [
+                bd.argwhere(
+                    gk**2 <= self.phc.claddings[0].eps_avg * omr**2).ravel(),
+                bd.argwhere(
+                    gk**2 <= self.phc.claddings[1].eps_avg * omr**2).ravel()
+            ]
             gkr = [gk[indmode] for indmode in indmoder]
 
             # Coupling constants to TE/TM modes in lower and upper cladding
@@ -1689,8 +1699,8 @@ class GuidedModeExp(object):
             count = 0
             for im1 in range(self.gmode_include[kind].size):
                 mode1 = self.gmode_include[kind][im1]
-                (indmode1, oms1, As1, Bs1, chis1) = \
-                            self._get_guided(gk, kind, mode1)
+                (indmode1, oms1, As1, Bs1,
+                 chis1) = self._get_guided(gk, kind, mode1)
                 # Iterate over lower cladding (0) and upper cladding (1)
                 for clad_ind in [0, 1]:
                     omr_arr = omr * bd.ones((indmoder[clad_ind].size, ))
@@ -1744,9 +1754,11 @@ class GuidedModeExp(object):
                 count += self.modes_numg[kind][im1]
 
             # Density of states of leaky modes
-            rad_dos = [self.phc.claddings[i].eps_avg/bd.sqrt(
-                    self.phc.claddings[i].eps_avg*omr**2 - gkr[i]**2) / \
-                    4 / np.pi for i in [0, 1]]
+            rad_dos = [
+                self.phc.claddings[i].eps_avg /
+                bd.sqrt(self.phc.claddings[i].eps_avg * omr**2 - gkr[i]**2) /
+                4 / np.pi for i in [0, 1]
+            ]
 
             # Store the reciprocal lattice vectors corresponding to the
             # radiation channels (diffraction orders)
@@ -1767,11 +1779,11 @@ class GuidedModeExp(object):
                 rad_coup['u_' + pol].append(c_u[pol])
 
             # radiative coupling to s (te) wave
-            rad_te = bd.sum(bd.square(bd.abs(c_l["te"]))) + \
-                    bd.sum(bd.square(bd.abs(c_u["te"])))
+            rad_te = bd.sum(bd.square(bd.abs(c_l["te"]))) + bd.sum(
+                bd.square(bd.abs(c_u["te"])))
             # radiative coupling to p (tm) wave
-            rad_tm = bd.sum(bd.square(bd.abs(c_l["tm"]))) + \
-                    bd.sum(bd.square(bd.abs(c_u["tm"])))
+            rad_tm = bd.sum(bd.square(bd.abs(c_l["tm"]))) + bd.sum(
+                bd.square(bd.abs(c_u["tm"])))
             rad_t = rad_te + rad_tm
 
             rad_tot.append(bd.imag(bd.sqrt(omr**2 + 1j * rad_t)))
@@ -1970,8 +1982,8 @@ class GuidedModeExp(object):
              ] = [bd.zeros(gnorm.shape, dtype=bd.complex) for i in range(3)]
             for im1 in range(self.gmode_include[kind].size):
                 mode1 = self.gmode_include[kind][im1]
-                (indmode, oms, As, Bs, chis) = \
-                            self._get_guided(gnorm, kind, mode1)
+                (indmode, oms, As, Bs,
+                 chis) = self._get_guided(gnorm, kind, mode1)
 
                 # TE-component
                 if mode1 % 2 == 0:
@@ -1998,8 +2010,8 @@ class GuidedModeExp(object):
                         Hxy = -1j * As[lind, :] * zp + 1j * Bs[lind, :] * zn
                         Hx = Hxy * chis[lind, :] * px[indmode]
                         Hy = Hxy * chis[lind, :] * py[indmode]
-                        Hz = 1j*(As[lind, :]*zp + Bs[lind, :]*zn) *\
-                                gnorm[indmode]
+                        Hz = 1j * (As[lind, :] * zp +
+                                   Bs[lind, :] * zn) * gnorm[indmode]
 
                 # TM-component
                 elif mode1 % 2 == 1:
@@ -2026,14 +2038,17 @@ class GuidedModeExp(object):
                         Hx = Hxy * qx[indmode]
                         Hy = Hxy * qy[indmode]
 
-                valsx = evec[count:count+self.modes_numg[kind][im1]]*\
-                                    Hx/bd.sqrt(self.phc.lattice.ec_area)
+                valsx = evec[count:count +
+                             self.modes_numg[kind][im1]] * Hx / bd.sqrt(
+                                 self.phc.lattice.ec_area)
                 Hx_ft = Hx_ft + bd.extend(valsx, indmode, Hx_ft.shape)
-                valsy = evec[count:count+self.modes_numg[kind][im1]]*\
-                                    Hy/bd.sqrt(self.phc.lattice.ec_area)
+                valsy = evec[count:count +
+                             self.modes_numg[kind][im1]] * Hy / bd.sqrt(
+                                 self.phc.lattice.ec_area)
                 Hy_ft = Hy_ft + bd.extend(valsy, indmode, Hy_ft.shape)
-                valsz = evec[count:count+self.modes_numg[kind][im1]]*\
-                                    Hz/bd.sqrt(self.phc.lattice.ec_area)
+                valsz = evec[count:count +
+                             self.modes_numg[kind][im1]] * Hz / bd.sqrt(
+                                 self.phc.lattice.ec_area)
                 Hz_ft = Hz_ft + bd.extend(valsz, indmode, Hz_ft.shape)
                 count += self.modes_numg[kind][im1]
 
@@ -2045,23 +2060,23 @@ class GuidedModeExp(object):
              ] = [bd.zeros(gnorm.shape, dtype=bd.complex) for i in range(3)]
             for im1 in range(self.gmode_include[kind].size):
                 mode1 = self.gmode_include[kind][im1]
-                (indmode, oms, As, Bs, chis) = \
-                            self._get_guided(gnorm, kind, mode1)
+                (indmode, oms, As, Bs,
+                 chis) = self._get_guided(gnorm, kind, mode1)
 
                 # TE-component
                 if mode1 % 2 == 0:
                     Dz = bd.zeros(indmode.shape, dtype=bd.complex)
                     # Do claddings separately
                     if lind == 0:
-                        D = 1j * Bs[0, :] * oms**2 / omega * \
-                            self.eps_array[0] * bd.exp(-1j*chis[0, :] * \
-                            (z-self.phc.claddings[0].z_max))
+                        D = 1j * Bs[0, :] * oms**2 / omega * self.eps_array[
+                            0] * bd.exp(-1j * chis[0, :] *
+                                        (z - self.phc.claddings[0].z_max))
                         Dx = D * qx[indmode]
                         Dy = D * qy[indmode]
                     elif lind == self.eps_array.size - 1:
-                        D = 1j * As[-1, :] * oms**2 / omega * \
-                            self.eps_array[-1] * bd.exp(1j*chis[-1, :] * \
-                            (z-self.phc.claddings[1].z_min))
+                        D = 1j * As[-1, :] * oms**2 / omega * self.eps_array[
+                            -1] * bd.exp(1j * chis[-1, :] *
+                                         (z - self.phc.claddings[1].z_min))
                         Dx = D * qx[indmode]
                         Dy = D * qy[indmode]
                     else:
@@ -2069,25 +2084,24 @@ class GuidedModeExp(object):
                                   self.phc.layers[lind - 1].z_max) / 2
                         zp = bd.exp(1j * chis[lind, :] * (z - z_cent))
                         zn = bd.exp(-1j * chis[lind, :] * (z - z_cent))
-                        Dxy = 1j*oms**2 / omega * \
-                            self.eps_array[lind] * \
-                            (As[lind, :]*zp + Bs[lind, :]*zn)
+                        Dxy = 1j * oms**2 / omega * self.eps_array[lind] * (
+                            As[lind, :] * zp + Bs[lind, :] * zn)
                         Dx = Dxy * qx[indmode]
                         Dy = Dxy * qy[indmode]
 
                 # TM-component
                 elif mode1 % 2 == 1:
                     if lind == 0:
-                        D = 1j / omega * Bs[0,:] * \
-                            bd.exp(-1j*chis[0,:] * \
-                            (z-self.phc.claddings[0].z_max))
+                        D = 1j / omega * Bs[0, :] * bd.exp(
+                            -1j * chis[0, :] *
+                            (z - self.phc.claddings[0].z_max))
                         Dx = D * 1j * chis[0, :] * px[indmode]
                         Dy = D * 1j * chis[0, :] * py[indmode]
                         Dz = D * 1j * gnorm[indmode]
                     elif lind == self.eps_array.size - 1:
-                        D = 1j / omega * As[-1,:] * \
-                            bd.exp(1j*chis[-1, :] * \
-                            (z-self.phc.claddings[1].z_min))
+                        D = 1j / omega * As[-1, :] * bd.exp(
+                            1j * chis[-1, :] *
+                            (z - self.phc.claddings[1].z_min))
                         Dx = -D * 1j * chis[-1, :] * px[indmode]
                         Dy = -D * 1j * chis[-1, :] * py[indmode]
                         Dz = D * 1j * gnorm[indmode]
@@ -2096,21 +2110,24 @@ class GuidedModeExp(object):
                                   self.phc.layers[lind - 1].z_max) / 2
                         zp = bd.exp(1j * chis[lind, :] * (z - z_cent))
                         zn = bd.exp(-1j * chis[lind, :] * (z - z_cent))
-                        Dxy = 1 / omega * chis[lind, :] * \
-                            (As[lind, :]*zp - Bs[lind, :]*zn)
+                        Dxy = 1 / omega * chis[lind, :] * (As[lind, :] * zp -
+                                                           Bs[lind, :] * zn)
                         Dx = Dxy * px[indmode]
                         Dy = Dxy * py[indmode]
-                        Dz = -1 / omega * gnorm[indmode] * \
-                            (As[lind, :]*zp + Bs[lind, :]*zn)
+                        Dz = -1 / omega * gnorm[indmode] * (As[lind, :] * zp +
+                                                            Bs[lind, :] * zn)
 
-                valsx = evec[count:count+self.modes_numg[kind][im1]]*\
-                                    Dx/bd.sqrt(self.phc.lattice.ec_area)
+                valsx = evec[count:count +
+                             self.modes_numg[kind][im1]] * Dx / bd.sqrt(
+                                 self.phc.lattice.ec_area)
                 Dx_ft = Dx_ft + bd.extend(valsx, indmode, Dx_ft.shape)
-                valsy = evec[count:count+self.modes_numg[kind][im1]]*\
-                                    Dy/bd.sqrt(self.phc.lattice.ec_area)
+                valsy = evec[count:count +
+                             self.modes_numg[kind][im1]] * Dy / bd.sqrt(
+                                 self.phc.lattice.ec_area)
                 Dy_ft = Dy_ft + bd.extend(valsy, indmode, Dy_ft.shape)
-                valsz = evec[count:count+self.modes_numg[kind][im1]]*\
-                                    Dz/bd.sqrt(self.phc.lattice.ec_area)
+                valsz = evec[count:count +
+                             self.modes_numg[kind][im1]] * Dz / bd.sqrt(
+                                 self.phc.lattice.ec_area)
                 Dz_ft = Dz_ft + bd.extend(valsz, indmode, Dz_ft.shape)
                 count += self.modes_numg[kind][im1]
 
@@ -2185,7 +2202,7 @@ class GuidedModeExp(object):
 
         for comp in component:
             if comp in ft.keys():
-                if not (comp in fi.keys()):
+                if comp not in fi.keys():
                     fi[comp] = ftinv(ft[comp], self.gvec, xgrid, ygrid)
             else:
                 raise ValueError("'component' can be any combination of "
@@ -2258,7 +2275,7 @@ class GuidedModeExp(object):
 
         for comp in component:
             if comp in ft.keys():
-                if not (comp in fi.keys()):
+                if comp not in fi.keys():
                     fi[comp] = []
                     for i, z in enumerate(zgrid):
                         fi[comp].append(
@@ -2336,7 +2353,7 @@ class GuidedModeExp(object):
 
         for comp in component:
             if comp in ft.keys():
-                if not (comp in fi.keys()):
+                if comp not in fi.keys():
                     fi[comp] = []
                     for i, z in enumerate(zgrid):
                         fi[comp].append(
@@ -2369,22 +2386,22 @@ class GuidedModeExp(object):
             corresponding to rad_coup
         """
 
-        num_kpoints = self.kpoints.shape[0]
+        num_kpoints = self.kpoints.shape[1]
         rad_gvecs = [[], []]
         rad_coups = []
 
         # Loop over kpoints to calculate the couplings to the radiative
         # modes and reciprocal lattice vectors in the desired cladding
         for kind in range(num_kpoints):
-            (_, rad_coup, rad_gvec) = self.compute_rad(kind, mind)
+            (_, rad_coup, rad_gvec) = self.compute_rad(kind, [mind])
 
             rad_coups.extend(
-                np.abs(rad_coup[cladding + '_te'])**2 +
-                np.abs(rad_coup[cladding + '_tm'])**2)
+                np.abs(rad_coup[cladding + '_te'][0])**2 +
+                np.abs(rad_coup[cladding + '_tm'][0])**2)
 
-            rad_gvecs[0].extend(rad_gvec[cladding][0, 0] +
+            rad_gvecs[0].extend(rad_gvec[cladding][0][0] +
                                 self.kpoints[0, kind])
-            rad_gvecs[1].extend(rad_gvec[cladding][0, 1] +
+            rad_gvecs[1].extend(rad_gvec[cladding][0][1] +
                                 self.kpoints[1, kind])
 
         # Normalize the reciprocal lattice vectors to be in range (-1,1)

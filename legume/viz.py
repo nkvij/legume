@@ -916,8 +916,8 @@ def eps_ft(struct,
                   "structure.")
             all_layers = [struct.layer]
         else:
-            all_layers = [struct.phc.claddings[0]] + struct.phc.layers + \
-                        [struct.phc.claddings[1]]
+            all_layers = [struct.phc.claddings[0]
+                          ] + struct.phc.layers + [struct.phc.claddings[1]]
     else:
         all_layers = struct.phc.layers if str_type == 'gme' else [struct.layer]
     N_layers = len(all_layers)
@@ -1196,8 +1196,9 @@ def field(struct,
     component = component.lower()
 
     # Get the field fourier components
-    if (x is None and y is None and z is None and str_type == 'pwe') or \
-        (z is not None and x is None and y is None):
+    if (x is None and y is None and z is None
+            and str_type == 'pwe') or (z is not None and x is None
+                                       and y is None):
 
         zval = 0. if z == None else z
         (fi, grid1, grid2) = struct.get_field_xy(field,
@@ -1296,8 +1297,13 @@ def field(struct,
 
         if eps == True:
             lcs = 'k' if val.lower() in ['re', 'im'] else 'w'
-            ax.contour(grid1, grid2, epsr, 0 if eps_levels is None else \
-                        eps_levels, colors=lcs, linewidths=1, alpha=0.5)
+            ax.contour(grid1,
+                       grid2,
+                       epsr,
+                       0 if eps_levels is None else eps_levels,
+                       colors=lcs,
+                       linewidths=1,
+                       alpha=0.5)
 
         if cbar == True:
             f1.colorbar(im, ax=ax, shrink=0.5)
@@ -1496,9 +1502,9 @@ def _calculate_LL(kpoints, phc, conv):
     return vec_LL
 
 
-def far_field(gme, mind: int, cladding='u'):
+def visualize_far_field(gme, mind: int, cladding='u'):
     """
-    Visualise the far field of a cavity
+    Plot the far field for the structure
     
     Parameters
     ----------
@@ -1518,6 +1524,8 @@ def far_field(gme, mind: int, cladding='u'):
     if (cladding != 'u' and cladding != 'l'):
         raise ValueError(
             "cladding can be 'u' for upper or 'l' for lower cladding")
+
+    # Calculate far field
     (rad_coups, rad_gvecs) = gme.get_farfield(mind=mind, cladding=cladding)
 
     fig, ax = plt.subplots(constrained_layout=True)
@@ -1527,6 +1535,7 @@ def far_field(gme, mind: int, cladding='u'):
     ax.set_ylabel('$k_y$/k')
     ax.set_xlim(-1.1, 1.1)
     ax.set_ylim(-1.1, 1.1)
+    ax.set_aspect('equal')
 
     if cladding == 'u':
         ax.set_title("Farfield for upper-cladding")
