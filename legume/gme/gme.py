@@ -2348,3 +2348,47 @@ class GuidedModeExp(object):
                                  "'x', 'y', and 'z' only.")
 
         return (fi, ygrid, zgrid)
+
+    def get_farfield(self, mind: int, cladding='u'):
+        """
+        Calculate the far field in k-space
+
+        Parameters
+        ----------
+        mind: int
+            Far field of the `mind` mode is computed.
+        cladding: str, optional
+            Cladding upper('u')/lower('l') for which far field is computed
+        
+        Returns
+        -------
+        rad_coups: np.ndarray
+            Total coupling to the radiative modes in the choice of cladding
+        rad_gvecs: np.ndarray
+            Normalized reciprocal lattice vectors in the choice of cladding 
+            corresponding to rad_coup
+        """
+
+        num_kpoints = self.kpoints.shape[0]
+        rad_gvecs = [[], []]
+        rad_coups = []
+
+        # Loop over kpoints to calculate the couplings to the radiative
+        # modes and reciprocal lattice vectors in the desired cladding
+        for kind in range(num_kpoints):
+            (_, rad_coup, rad_gvec) = self.compute_rad(kind, mind)
+
+            rad_coups.extend(
+                np.abs(rad_coup[cladding + '_te'])**2 +
+                np.abs(rad_coup[cladding + '_tm'])**2)
+
+            rad_gvecs[0].extend(rad_gvec[cladding][0, 0] +
+                                self.kpoints[0, kind])
+            rad_gvecs[1].extend(rad_gvec[cladding][0, 1] +
+                                self.kpoints[1, kind])
+
+        # Normalize the reciprocal lattice vectors to be in range (-1,1)
+        rad_gvec_norm = 2 * np.pi * self.freqs[0, mind]
+        rad_gvecs = rad_gvecs / rad_gvec_norm
+
+        return (bd.array(rad_coups), bd.array(rad_gvecs))

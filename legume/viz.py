@@ -1,13 +1,14 @@
-import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
+
 from legume.utils import from_freq_to_e
-import warnings
-from .gme import GuidedModeExp
-from .phc import PhotCryst, Circle
-from .pwe import PlaneWaveExp
+
 from .exc import ExcitonSchroedEq
+from .gme import GuidedModeExp
+from .phc import Circle, PhotCryst
 from .pol import HopfieldPol
+from .pwe import PlaneWaveExp
 
 
 def bands(gme,
@@ -1493,3 +1494,43 @@ def _calculate_LL(kpoints, phc, conv):
         np.square(kpoints[1, :])) / 2 / np.pi / np.sqrt(max(eps_clad))
 
     return vec_LL
+
+
+def far_field(gme, mind: int, cladding='u'):
+    """
+    Visualise the far field of a cavity
+    
+    Parameters
+    ----------
+    gme: GuidedModeExp
+    mind: int
+        Far field of the `mind` mode is computed.
+        
+    cladding: str, optional
+        Cladding upper('u')/lower('l') for which far field is computed
+        
+    Returns
+    -------
+    fig : matplotlib figure object
+        Figure object for the plot.
+    """
+
+    if (cladding != 'u' and cladding != 'l'):
+        raise ValueError(
+            "cladding can be 'u' for upper or 'l' for lower cladding")
+    (rad_coups, rad_gvecs) = gme.get_farfield(mind=mind, cladding=cladding)
+
+    fig, ax = plt.subplots(constrained_layout=True)
+
+    ax.scatter(rad_gvecs[0], rad_gvecs[1], c=rad_coups, cmap='viridis', s=50)
+    ax.set_xlabel('$k_x$/k')
+    ax.set_ylabel('$k_y$/k')
+    ax.set_xlim(-1.1, 1.1)
+    ax.set_ylim(-1.1, 1.1)
+
+    if cladding == 'u':
+        ax.set_title("Farfield for upper-cladding")
+    elif cladding == 'l':
+        ax.set_title("Farfield for lower-cladding")
+
+    return fig
