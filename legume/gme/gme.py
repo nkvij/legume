@@ -294,14 +294,6 @@ class GuidedModeExp(object):
         Variable 'indmode' stores the indexes of 'gk' over which a guided
         mode solution was found
         """
-        def interp_coeff(coeffs, il, ic, indmode, gs):
-            """
-            Interpolate the A/B coefficient (ic = 0/1) in layer number il
-            """
-            param_list = [coeffs[i][il, ic, 0] for i in range(len(coeffs))]
-            c_interp = bd.interp(gk[indmode], gs, bd.array(param_list))
-            return c_interp.ravel()
-
         def interp_guided(im, ik, omegas, coeffs):
             """
             Interpolate all the relevant guided mode parameters over gk
@@ -312,10 +304,13 @@ class GuidedModeExp(object):
             e_a = self.eps_array if self.gradients == 'exact' else self.eps_array_val
             chis = self._get_chi(gk[indmode], oms, e_a)
 
-            As, Bs = [], []
-            for il in range(self.N_layers + 2):
-                As.append(interp_coeff(coeffs[ik][im], il, 0, indmode, gs))
-                Bs.append(interp_coeff(coeffs[ik][im], il, 1, indmode, gs))
+            coeff_stack = bd.stack([c[:, :, 0] for c in coeffs[ik][im]], axis=-1)
+            As_all = coeff_stack[:, 0, :]
+            Bs_all = coeff_stack[:, 1, :]
+            idx = np.clip(np.searchsorted(gs, gk[indmode]) - 1, 0, gs.size - 2)
+            w = (gk[indmode] - gs[idx]) / (gs[idx + 1] - gs[idx])
+            As = (1 - w[bd.newaxis, :]) * As_all[:, idx] + w[bd.newaxis, :] * As_all[:, idx + 1]
+            Bs = (1 - w[bd.newaxis, :]) * Bs_all[:, idx] + w[bd.newaxis, :] * Bs_all[:, idx + 1]
             As = bd.array(As, dtype=bd.complex)
             Bs = bd.array(Bs, dtype=bd.complex)
 
