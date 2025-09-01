@@ -339,14 +339,9 @@ class GuidedModeExp(object):
         vectors gk and frequencies oms (can be either a single number or an 
         array of the same shape as gk)
         """
-        chis = []
-        for il in range(self.N_layers + 2):
-            sqarg = bd.array(eps_array[il] * bd.square(oms) - bd.square(gk),
-                             dtype=bd.complex)
-            chi = bd.where(
-                bd.real(sqarg) >= 0, bd.sqrt(sqarg), 1j * bd.sqrt(-sqarg))
-            chis.append(chi)
-        return bd.array(chis, dtype=bd.complex)
+        sqarg = eps_array[:, None]*bd.square(oms) - bd.square(gk)
+        return bd.where(
+            bd.real(sqarg) >= 0, bd.sqrt(sqarg), 1j * bd.sqrt(-sqarg))
 
     def _get_rad(self, gkr, omr, pol, clad):
         """
