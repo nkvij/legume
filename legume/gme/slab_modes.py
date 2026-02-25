@@ -264,6 +264,7 @@ def D22(omega, g, eps_array, d_array, pol='TM'):
             D22 = chis2/eps2*(chis1/eps1 + chis3/eps3)*tcos + \
                     (chis1/eps1*chis3/eps3 + bd.square(chis2/eps2))*tsin
         return D22
+    
     else:
         if pol.lower() == 'te':
             S_mat, T_mat = S_T_matrices_TE(omega, g, eps_array, d_array)
@@ -275,7 +276,13 @@ def D22(omega, g, eps_array, d_array, pol='TM'):
         D = S_mat[0, :, :]
         for i, S in enumerate(S_mat[1:]):
             T = T_mat[i]
-            D = bd.dot(S, bd.dot(T, bd.dot(T, D)))
+            # --- OPTIMIZED BOTTLENECK ---
+            # T is a diagonal matrix [[T11, 0], [0, T22]]. 
+            # We avoid two dense bd.dot calls by broadcasting the squared diagonal.
+            T2_diag = bd.array([T[0, 0]**2, T[1, 1]**2])
+            D = bd.dot(S, T2_diag[:, bd.newaxis] * D)
+            # --- END OPTIMIZATION ---
+            
         return D[1, 1]
 
 
@@ -463,80 +470,163 @@ def normalization_coeff(omega,
     else:
         raise Exception('Polarization should be TE or TM.')
 
-
 def rad_modes(omega: float,
               g_array: np.ndarray,
               eps_array: np.ndarray,
               d_array: np.ndarray,
               pol: str = 'TE',
               clad: int = 0):
-    """ 
-    Function to compute the radiative modes of a multi-layer structure
-    Input
-    g_array         : numpy array of wave vector amplitudes 
-    eps_array       : numpy array of slab permittivities, starting with lower 
-                      cladding and ending with upper cladding
-
-    d_array         : thicknesses of each layer
-    omega           : frequency of the radiative mode
-    pol             : polarization, 'te' or 'tm'
-    clad            : radiating into cladding index, 0 (lower) or 1 (upper)
-    Output
-    Xs, Ys          : X, Y coefficients of the modes in every layer
-    """
-
-    Xs, Ys = [], []
-    for ig, g in enumerate(g_array):
-        g_val = max([g, 1e-10])
-        # Get the scattering and transfer matrices
-        if pol.lower() == 'te' and clad == 0:
-            S_mat, T_mat = S_T_matrices_TE(omega, g_val, eps_array[::-1],
-                                           d_array[::-1])
-        elif pol.lower() == 'te' and clad == 1:
-            S_mat, T_mat = S_T_matrices_TE(omega, g_val, eps_array, d_array)
-        elif pol.lower() == 'tm' and clad == 0:
-            S_mat, T_mat = S_T_matrices_TM(omega, g_val, eps_array[::-1],
-                                           d_array[::-1])
-        elif pol.lower() == 'tm' and clad == 1:
-            S_mat, T_mat = S_T_matrices_TM(omega, g_val, eps_array, d_array)
-
-        # Compute the transfer matrix coefficients
-        coeffs = [bd.array([0, 1])]
-        coeffs.append(bd.dot(T_mat[0], bd.dot(S_mat[0], coeffs[0])))
-        for i, S in enumerate(S_mat[1:-1]):
-            T2 = T_mat[i + 1]
-            T1 = T_mat[i]
-            coeffs.append(bd.dot(T2, bd.dot(S, bd.dot(T1, coeffs[-1]))))
-        coeffs.append(bd.dot(S_mat[-1], bd.dot(T_mat[-1], coeffs[-1])))
-        coeffs = bd.array(coeffs, dtype=bd.complex).transpose()
-
-        # Normalize
-        coeffs = coeffs / coeffs[1, -1]
-        if pol == 'te':
-            c_ind = [0, -1]
-            coeffs = coeffs / bd.sqrt(eps_array[c_ind[clad]]) / omega
-        # Assign correctly based on which cladding the modes radiate to
-        if clad == 0:
-            Xs.append(coeffs[0, ::-1].ravel())
-            Ys.append(coeffs[1, ::-1].ravel())
-        elif clad == 1:
-            Xs.append(coeffs[1, :].ravel())
-            Ys.append(coeffs[0, :].ravel())
-
-    Xs = bd.array(Xs, dtype=bd.complex).transpose()
-    Ys = bd.array(Ys, dtype=bd.complex).transpose()
-
-    # Fix the dimension if g_array is an empty list
+    
+   # --- OPTIMIZED BOTTLENECK: Vectorized Radiative Modes ---
     if len(g_array) == 0:
-        Xs = bd.ones((eps_array.size, 1)) * Xs
-        Ys = bd.ones((eps_array.size, 1)) * Ys
-    """
-    (Xs, Ys) corresponds to the X, W coefficients for TE radiative modes in 
-    Andreani and Gerace PRB (2006), and to the Z, Y coefficients for TM modes
+        return (bd.zeros((eps_array.size, 0), dtype=bd.complex), 
+                bd.zeros((eps_array.size, 0), dtype=bd.complex))
 
-    Note that there's an error in the manuscript; within our definitions, the 
-    correct statement should be: X3 = 0 for states out-going in the lower 
-    cladding; normalize through W1; and W1 = 0 for states out-going in the upper
-    cladding; normalize through X3.
-    """
+    # Reshape g_array to (1, Ng) for broadcasting
+    g_val = bd.where(g_array < 1e-10, 1e-10, g_array)[bd.newaxis, :]
+    
+    # Reverse arrays if radiating into the lower cladding and reshape to (N_layers, 1)
+    if clad == 0:
+        e_arr = bd.array(eps_array[::-1])[:, bd.newaxis]
+        d_arr = bd.array(d_array[::-1])[:, bd.newaxis]
+    else:
+        e_arr = bd.array(eps_array)[:, bd.newaxis]
+        d_arr = bd.array(d_array)[:, bd.newaxis]
+        
+    chi_arr = chi(omega, g_val, e_arr) # Shape becomes (N_layers, Ng)
+    
+    # Vectorized Scattering (S) matrices
+    if pol.lower() == 'te':
+        S11 = chi_arr[:-1] + chi_arr[1:]
+        S12 = -chi_arr[:-1] + chi_arr[1:]
+        prefac = 0.5 / chi_arr[1:]
+    elif pol.lower() == 'tm':
+        S11 = (chi_arr[:-1]/e_arr[:-1] + chi_arr[1:]/e_arr[1:])
+        S12 = (-chi_arr[:-1]/e_arr[:-1] + chi_arr[1:]/e_arr[1:])
+        prefac = 0.5 / (chi_arr[1:] / e_arr[1:])
+        
+    S21, S22 = S12, S11
+    
+    # Vectorized Transfer (T) matrices (diagonals)
+    T11 = bd.exp(1j * chi_arr[1:-1] * d_arr / 2)
+    T22 = bd.exp(-1j * chi_arr[1:-1] * d_arr / 2)
+    
+    # Propagate through layers
+    coeffs = [bd.zeros((2, g_array.size), dtype=bd.complex)]
+    coeffs[0][1, :] = 1.0 # Initialize to [0, 1]^T
+    
+    c0, c1 = coeffs[0][0, :], coeffs[0][1, :]
+    Sc0 = prefac[0] * (S11[0]*c0 + S12[0]*c1)
+    Sc1 = prefac[0] * (S21[0]*c0 + S22[0]*c1)
+    
+    if len(d_array) > 0:
+        coeffs.append(bd.array([T11[0]*Sc0, T22[0]*Sc1]))
+        for i in range(1, len(d_array)):
+            c0, c1 = coeffs[-1][0, :], coeffs[-1][1, :]
+            Tc0, Tc1 = T11[i-1]*c0, T22[i-1]*c1
+            Sc0 = prefac[i] * (S11[i]*Tc0 + S12[i]*Tc1)
+            Sc1 = prefac[i] * (S21[i]*Tc0 + S22[i]*Tc1)
+            coeffs.append(bd.array([T11[i]*Sc0, T22[i]*Sc1]))
+            
+        c0, c1 = coeffs[-1][0, :], coeffs[-1][1, :]
+        Tc0, Tc1 = T11[-1]*c0, T22[-1]*c1
+        Sc0 = prefac[-1] * (S11[-1]*Tc0 + S12[-1]*Tc1)
+        Sc1 = prefac[-1] * (S21[-1]*Tc0 + S22[-1]*Tc1)
+        coeffs.append(bd.array([Sc0, Sc1]))
+    else:
+        coeffs.append(bd.array([Sc0, Sc1]))
+        
+    coeffs = bd.array(coeffs) # Shape: (N_layers, 2, Ng)
+    
+    # Normalize
+    coeffs = coeffs / coeffs[-1, 1, :][bd.newaxis, bd.newaxis, :]
+    if pol.lower() == 'te':
+        c_ind = [0, -1]
+        coeffs = coeffs / bd.sqrt(eps_array[c_ind[clad]]) / omega
+        
+    if clad == 0:
+        Xs = coeffs[::-1, 0, :]
+        Ys = coeffs[::-1, 1, :]
+    else:
+        Xs = coeffs[:, 1, :]
+        Ys = coeffs[:, 0, :]
+
     return (Xs, Ys)
+    # --- END OPTIMIZATION ---
+
+# def rad_modes(omega: float,
+#               g_array: np.ndarray,
+#               eps_array: np.ndarray,
+#               d_array: np.ndarray,
+#               pol: str = 'TE',
+#               clad: int = 0):
+#     """ 
+#     Function to compute the radiative modes of a multi-layer structure
+#     Input
+#     g_array         : numpy array of wave vector amplitudes 
+#     eps_array       : numpy array of slab permittivities, starting with lower 
+#                       cladding and ending with upper cladding
+
+#     d_array         : thicknesses of each layer
+#     omega           : frequency of the radiative mode
+#     pol             : polarization, 'te' or 'tm'
+#     clad            : radiating into cladding index, 0 (lower) or 1 (upper)
+#     Output
+#     Xs, Ys          : X, Y coefficients of the modes in every layer
+#     """
+
+#     Xs, Ys = [], []
+#     for ig, g in enumerate(g_array):
+#         g_val = max([g, 1e-10])
+#         # Get the scattering and transfer matrices
+#         if pol.lower() == 'te' and clad == 0:
+#             S_mat, T_mat = S_T_matrices_TE(omega, g_val, eps_array[::-1],
+#                                            d_array[::-1])
+#         elif pol.lower() == 'te' and clad == 1:
+#             S_mat, T_mat = S_T_matrices_TE(omega, g_val, eps_array, d_array)
+#         elif pol.lower() == 'tm' and clad == 0:
+#             S_mat, T_mat = S_T_matrices_TM(omega, g_val, eps_array[::-1],
+#                                            d_array[::-1])
+#         elif pol.lower() == 'tm' and clad == 1:
+#             S_mat, T_mat = S_T_matrices_TM(omega, g_val, eps_array, d_array)
+
+#         # Compute the transfer matrix coefficients
+#         coeffs = [bd.array([0, 1])]
+#         coeffs.append(bd.dot(T_mat[0], bd.dot(S_mat[0], coeffs[0])))
+#         for i, S in enumerate(S_mat[1:-1]):
+#             T2 = T_mat[i + 1]
+#             T1 = T_mat[i]
+#             coeffs.append(bd.dot(T2, bd.dot(S, bd.dot(T1, coeffs[-1]))))
+#         coeffs.append(bd.dot(S_mat[-1], bd.dot(T_mat[-1], coeffs[-1])))
+#         coeffs = bd.array(coeffs, dtype=bd.complex).transpose()
+
+#         # Normalize
+#         coeffs = coeffs / coeffs[1, -1]
+#         if pol == 'te':
+#             c_ind = [0, -1]
+#             coeffs = coeffs / bd.sqrt(eps_array[c_ind[clad]]) / omega
+#         # Assign correctly based on which cladding the modes radiate to
+#         if clad == 0:
+#             Xs.append(coeffs[0, ::-1].ravel())
+#             Ys.append(coeffs[1, ::-1].ravel())
+#         elif clad == 1:
+#             Xs.append(coeffs[1, :].ravel())
+#             Ys.append(coeffs[0, :].ravel())
+
+#     Xs = bd.array(Xs, dtype=bd.complex).transpose()
+#     Ys = bd.array(Ys, dtype=bd.complex).transpose()
+
+#     # Fix the dimension if g_array is an empty list
+#     if len(g_array) == 0:
+#         Xs = bd.ones((eps_array.size, 1)) * Xs
+#         Ys = bd.ones((eps_array.size, 1)) * Ys
+#     """
+#     (Xs, Ys) corresponds to the X, W coefficients for TE radiative modes in 
+#     Andreani and Gerace PRB (2006), and to the Z, Y coefficients for TM modes
+
+#     Note that there's an error in the manuscript; within our definitions, the 
+#     correct statement should be: X3 = 0 for states out-going in the lower 
+#     cladding; normalize through W1; and W1 = 0 for states out-going in the upper
+#     cladding; normalize through X3.
+#     """
+#     return (Xs, Ys)

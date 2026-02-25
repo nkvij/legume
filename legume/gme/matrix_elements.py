@@ -28,141 +28,267 @@ def IJ_layer(il, Nl, arg, ds):
 #     I = IJ_layer(il, Nl, c12, d_array)
 #     return A12 * I
 
-
 def mat_te_te(eps_array, d_array, eps_inv_mat, indmode1, oms1, As1, Bs1, chis1,
               indmode2, oms2, As2, Bs2, chis2, qq):
-    """
-    Matrix block for TE-TE mode coupling
-    """
-
-    # Index matrix selecting the participating modes
+    """Matrix block for TE-TE mode coupling"""
     indmat = np.ix_(indmode1, indmode2)
-    # Number of layers
     Nl = eps_array.size
-
-    # Build the matrix layer by layer
     mat = bd.zeros((indmode1.size, indmode2.size))
+    
     for il in range(0, Nl):
-        mat = mat + eps_inv_mat[il][indmat] * \
-        eps_array[il]**2 * \
-        (   bd.outer(bd.conj(As1[il, :]), As2[il, :]) *
-            IJ_layer(il, Nl, chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array) +
-            bd.outer(bd.conj(Bs1[il, :]), Bs2[il, :]) *
-            IJ_layer(il, Nl, -chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array) +
-            bd.outer(bd.conj(As1[il, :]), Bs2[il, :]) *
-            IJ_layer(il, Nl, -chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array) +
-            bd.outer(bd.conj(Bs1[il, :]), As2[il, :]) *
-            IJ_layer(il, Nl, chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)
-        )
+        # Cache conjugations and 2D broadcasts
+        c1_c = bd.conj(chis1[il, :])[:, bd.newaxis]
+        c2 = chis2[il, :][bd.newaxis, :]
+        A1_c = bd.conj(As1[il, :])[:, bd.newaxis]
+        B1_c = bd.conj(Bs1[il, :])[:, bd.newaxis]
+        A2 = As2[il, :][bd.newaxis, :]
+        B2 = Bs2[il, :][bd.newaxis, :]
+        
+        # Precompute integral arguments to avoid redundant subtractions
+        arg_minus = c2 - c1_c
+        arg_plus = c2 + c1_c
+        
+        term = (A1_c * A2) * IJ_layer(il, Nl, arg_minus, d_array) + \
+               (B1_c * B2) * IJ_layer(il, Nl, -arg_minus, d_array) + \
+               (A1_c * B2) * IJ_layer(il, Nl, -arg_plus, d_array) + \
+               (B1_c * A2) * IJ_layer(il, Nl, arg_plus, d_array)
+               
+        mat = mat + eps_inv_mat[il][indmat] * (eps_array[il]**2) * term
 
-    # Final pre-factor
     mat = mat * bd.outer(oms1**2, oms2**2) * qq[indmat]
     return mat
 
 
 def mat_tm_tm(eps_array, d_array, eps_inv_mat, gk, indmode1, oms1, As1, Bs1,
               chis1, indmode2, oms2, As2, Bs2, chis2, pp):
-    """
-    Matrix block for TM-TM mode coupling
-    """
-
-    # Index matrix selecting the participating modes
+    """Matrix block for TM-TM mode coupling"""
     indmat = np.ix_(indmode1, indmode2)
-    # Number of layers
     Nl = eps_array.size
-
-    # Build the matrix layer by layer
     mat = bd.zeros((indmode1.size, indmode2.size))
+    
+    # --- LOOP INVARIANT MOTION ---
+    pp_mat = pp[indmat]
+    gk_outer = bd.outer(gk[indmode1], gk[indmode2]) # Computed ONCE instead of Nl times
+    
     for il in range(0, Nl):
-        mat = mat + eps_inv_mat[il][indmat]*(
-        (pp[indmat] * bd.outer(bd.conj(chis1[il, :]), chis2[il, :]) + \
-        bd.outer(gk[indmode1], gk[indmode2])) * (
-            bd.outer(bd.conj(As1[il, :]), As2[il, :]) *
-            IJ_layer(il, Nl, chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array) +
-            bd.outer(bd.conj(Bs1[il, :]), Bs2[il, :]) *
-            IJ_layer(il, Nl, -chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)) - \
-        (pp[indmat] * bd.outer(bd.conj(chis1[il, :]), chis2[il, :]) - \
-        bd.outer(gk[indmode1], gk[indmode2])) * (
-            bd.outer(bd.conj(As1[il, :]), Bs2[il, :]) *
-            IJ_layer(il, Nl, -chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array) +
-            bd.outer(bd.conj(Bs1[il, :]), As2[il, :]) *
-            IJ_layer(il, Nl, chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array))  )
+        c1_c = bd.conj(chis1[il, :])[:, bd.newaxis]
+        c2 = chis2[il, :][bd.newaxis, :]
+        A1_c = bd.conj(As1[il, :])[:, bd.newaxis]
+        B1_c = bd.conj(Bs1[il, :])[:, bd.newaxis]
+        A2 = As2[il, :][bd.newaxis, :]
+        B2 = Bs2[il, :][bd.newaxis, :]
+        
+        arg_minus = c2 - c1_c
+        arg_plus = c2 + c1_c
+        
+        pp_g = pp_mat * (c1_c * c2)
+        term_plus = pp_g + gk_outer
+        term_minus = pp_g - gk_outer
+        
+        term = term_plus * (
+                    (A1_c * A2) * IJ_layer(il, Nl, arg_minus, d_array) + \
+                    (B1_c * B2) * IJ_layer(il, Nl, -arg_minus, d_array)
+               ) - term_minus * (
+                    (A1_c * B2) * IJ_layer(il, Nl, -arg_plus, d_array) + \
+                    (B1_c * A2) * IJ_layer(il, Nl, arg_plus, d_array)
+               )
+               
+        mat = mat + eps_inv_mat[il][indmat] * term
 
     return mat
 
 
 def mat_te_tm(eps_array, d_array, eps_inv_mat, indmode1, oms1, As1, Bs1, chis1,
               indmode2, oms2, As2, Bs2, chis2, qp):
-    """
-    Matrix block for TE-TM mode coupling
-    """
-
-    # Index matrix selecting the participating modes
+    """Matrix block for TE-TM mode coupling"""
     indmat = np.ix_(indmode1, indmode2)
-    # Number of layers
     Nl = eps_array.size
-
-    # Build the matrix layer by layer
     mat = bd.zeros((indmode1.size, indmode2.size))
-    # Contributions from layers
+    
     for il in range(0, Nl):
-        mat = mat + 1j * eps_inv_mat[il][indmat] * \
-        eps_array[il] * chis2[il, :][bd.newaxis, :] * (
-        -bd.outer(bd.conj(As1[il, :]), As2[il, :]) *
-            IJ_layer(il, Nl, chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)
-        +bd.outer(bd.conj(Bs1[il, :]), Bs2[il, :]) *
-            IJ_layer(il, Nl, -chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)
-        +bd.outer(bd.conj(As1[il, :]), Bs2[il, :]) *
-            IJ_layer(il, Nl, -chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)
-        -bd.outer(bd.conj(Bs1[il, :]), As2[il, :]) *
-            IJ_layer(il, Nl, chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)  )
+        c1_c = bd.conj(chis1[il, :])[:, bd.newaxis]
+        c2 = chis2[il, :][bd.newaxis, :]
+        A1_c = bd.conj(As1[il, :])[:, bd.newaxis]
+        B1_c = bd.conj(Bs1[il, :])[:, bd.newaxis]
+        A2 = As2[il, :][bd.newaxis, :]
+        B2 = Bs2[il, :][bd.newaxis, :]
+        
+        arg_minus = c2 - c1_c
+        arg_plus = c2 + c1_c
+        
+        term = -(A1_c * A2) * IJ_layer(il, Nl, arg_minus, d_array) + \
+                (B1_c * B2) * IJ_layer(il, Nl, -arg_minus, d_array) + \
+                (A1_c * B2) * IJ_layer(il, Nl, -arg_plus, d_array) - \
+                (B1_c * A2) * IJ_layer(il, Nl, arg_plus, d_array)
+                
+        mat = mat + 1j * eps_inv_mat[il][indmat] * eps_array[il] * c2 * term
 
-    # Final pre-factor
     mat = mat * (oms1**2)[:, bd.newaxis] * qp[indmat]
     return mat
 
 
 def mat_tm_te(eps_array, d_array, eps_inv_mat, indmode1, oms1, As1, Bs1, chis1,
               indmode2, oms2, As2, Bs2, chis2, pq):
-    """
-    Matrix block for TM-TE mode coupling
-    """
-
-    # Index matrix selecting the participating modes
+    """Matrix block for TM-TE mode coupling"""
     indmat = np.ix_(indmode1, indmode2)
-    # Number of layers
     Nl = eps_array.size
-
-    # Build the matrix layer by layer
     mat = bd.zeros((indmode1.size, indmode2.size))
+    
     for il in range(0, Nl):
-        mat = mat + 1j * eps_inv_mat[il][indmat] * \
-        eps_array[il] * bd.conj(chis1[il, :])[:, bd.newaxis] * (
-        bd.outer(bd.conj(As1[il, :]), As2[il, :]) *
-            IJ_layer(il, Nl, chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)
-        -bd.outer(bd.conj(Bs1[il, :]), Bs2[il, :]) *
-            IJ_layer(il, Nl, -chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)
-        +bd.outer(bd.conj(As1[il, :]), Bs2[il, :]) *
-            IJ_layer(il, Nl, -chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)
-        -bd.outer(bd.conj(Bs1[il, :]), As2[il, :]) *
-            IJ_layer(il, Nl, chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
-                d_array)  )
+        c1_c = bd.conj(chis1[il, :])[:, bd.newaxis]
+        c2 = chis2[il, :][bd.newaxis, :]
+        A1_c = bd.conj(As1[il, :])[:, bd.newaxis]
+        B1_c = bd.conj(Bs1[il, :])[:, bd.newaxis]
+        A2 = As2[il, :][bd.newaxis, :]
+        B2 = Bs2[il, :][bd.newaxis, :]
+        
+        arg_minus = c2 - c1_c
+        arg_plus = c2 + c1_c
+        
+        term =  (A1_c * A2) * IJ_layer(il, Nl, arg_minus, d_array) - \
+                (B1_c * B2) * IJ_layer(il, Nl, -arg_minus, d_array) + \
+                (A1_c * B2) * IJ_layer(il, Nl, -arg_plus, d_array) - \
+                (B1_c * A2) * IJ_layer(il, Nl, arg_plus, d_array)
+                
+        mat = mat + 1j * eps_inv_mat[il][indmat] * eps_array[il] * c1_c * term
 
-    # Final pre-factor
     mat = mat * (oms2**2)[bd.newaxis, :] * pq[indmat]
     return mat
+
+# def mat_te_te(eps_array, d_array, eps_inv_mat, indmode1, oms1, As1, Bs1, chis1,
+#               indmode2, oms2, As2, Bs2, chis2, qq):
+#     """
+#     Matrix block for TE-TE mode coupling
+#     """
+
+#     # Index matrix selecting the participating modes
+#     indmat = np.ix_(indmode1, indmode2)
+#     # Number of layers
+#     Nl = eps_array.size
+
+#     # Build the matrix layer by layer
+#     mat = bd.zeros((indmode1.size, indmode2.size))
+#     for il in range(0, Nl):
+#         mat = mat + eps_inv_mat[il][indmat] * \
+#         eps_array[il]**2 * \
+#         (   bd.outer(bd.conj(As1[il, :]), As2[il, :]) *
+#             IJ_layer(il, Nl, chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array) +
+#             bd.outer(bd.conj(Bs1[il, :]), Bs2[il, :]) *
+#             IJ_layer(il, Nl, -chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array) +
+#             bd.outer(bd.conj(As1[il, :]), Bs2[il, :]) *
+#             IJ_layer(il, Nl, -chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array) +
+#             bd.outer(bd.conj(Bs1[il, :]), As2[il, :]) *
+#             IJ_layer(il, Nl, chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)
+#         )
+
+#     # Final pre-factor
+#     mat = mat * bd.outer(oms1**2, oms2**2) * qq[indmat]
+#     return mat
+
+
+# def mat_tm_tm(eps_array, d_array, eps_inv_mat, gk, indmode1, oms1, As1, Bs1,
+#               chis1, indmode2, oms2, As2, Bs2, chis2, pp):
+#     """
+#     Matrix block for TM-TM mode coupling
+#     """
+
+#     # Index matrix selecting the participating modes
+#     indmat = np.ix_(indmode1, indmode2)
+#     # Number of layers
+#     Nl = eps_array.size
+
+#     # Build the matrix layer by layer
+#     mat = bd.zeros((indmode1.size, indmode2.size))
+#     for il in range(0, Nl):
+#         mat = mat + eps_inv_mat[il][indmat]*(
+#         (pp[indmat] * bd.outer(bd.conj(chis1[il, :]), chis2[il, :]) + \
+#         bd.outer(gk[indmode1], gk[indmode2])) * (
+#             bd.outer(bd.conj(As1[il, :]), As2[il, :]) *
+#             IJ_layer(il, Nl, chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array) +
+#             bd.outer(bd.conj(Bs1[il, :]), Bs2[il, :]) *
+#             IJ_layer(il, Nl, -chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)) - \
+#         (pp[indmat] * bd.outer(bd.conj(chis1[il, :]), chis2[il, :]) - \
+#         bd.outer(gk[indmode1], gk[indmode2])) * (
+#             bd.outer(bd.conj(As1[il, :]), Bs2[il, :]) *
+#             IJ_layer(il, Nl, -chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array) +
+#             bd.outer(bd.conj(Bs1[il, :]), As2[il, :]) *
+#             IJ_layer(il, Nl, chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array))  )
+
+#     return mat
+
+
+# def mat_te_tm(eps_array, d_array, eps_inv_mat, indmode1, oms1, As1, Bs1, chis1,
+#               indmode2, oms2, As2, Bs2, chis2, qp):
+#     """
+#     Matrix block for TE-TM mode coupling
+#     """
+
+#     # Index matrix selecting the participating modes
+#     indmat = np.ix_(indmode1, indmode2)
+#     # Number of layers
+#     Nl = eps_array.size
+
+#     # Build the matrix layer by layer
+#     mat = bd.zeros((indmode1.size, indmode2.size))
+#     # Contributions from layers
+#     for il in range(0, Nl):
+#         mat = mat + 1j * eps_inv_mat[il][indmat] * \
+#         eps_array[il] * chis2[il, :][bd.newaxis, :] * (
+#         -bd.outer(bd.conj(As1[il, :]), As2[il, :]) *
+#             IJ_layer(il, Nl, chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)
+#         +bd.outer(bd.conj(Bs1[il, :]), Bs2[il, :]) *
+#             IJ_layer(il, Nl, -chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)
+#         +bd.outer(bd.conj(As1[il, :]), Bs2[il, :]) *
+#             IJ_layer(il, Nl, -chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)
+#         -bd.outer(bd.conj(Bs1[il, :]), As2[il, :]) *
+#             IJ_layer(il, Nl, chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)  )
+
+#     # Final pre-factor
+#     mat = mat * (oms1**2)[:, bd.newaxis] * qp[indmat]
+#     return mat
+
+
+# def mat_tm_te(eps_array, d_array, eps_inv_mat, indmode1, oms1, As1, Bs1, chis1,
+#               indmode2, oms2, As2, Bs2, chis2, pq):
+#     """
+#     Matrix block for TM-TE mode coupling
+#     """
+
+#     # Index matrix selecting the participating modes
+#     indmat = np.ix_(indmode1, indmode2)
+#     # Number of layers
+#     Nl = eps_array.size
+
+#     # Build the matrix layer by layer
+#     mat = bd.zeros((indmode1.size, indmode2.size))
+#     for il in range(0, Nl):
+#         mat = mat + 1j * eps_inv_mat[il][indmat] * \
+#         eps_array[il] * bd.conj(chis1[il, :])[:, bd.newaxis] * (
+#         bd.outer(bd.conj(As1[il, :]), As2[il, :]) *
+#             IJ_layer(il, Nl, chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)
+#         -bd.outer(bd.conj(Bs1[il, :]), Bs2[il, :]) *
+#             IJ_layer(il, Nl, -chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)
+#         +bd.outer(bd.conj(As1[il, :]), Bs2[il, :]) *
+#             IJ_layer(il, Nl, -chis2[il, :] - bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)
+#         -bd.outer(bd.conj(Bs1[il, :]), As2[il, :]) *
+#             IJ_layer(il, Nl, chis2[il, :] + bd.conj(chis1[il, :][:, bd.newaxis]),
+#                 d_array)  )
+
+#     # Final pre-factor
+#     mat = mat * (oms2**2)[bd.newaxis, :] * pq[indmat]
+#     return mat

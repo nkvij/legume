@@ -97,8 +97,7 @@ def bands(gme,
     if eV == True:
         if a is None:
             raise ValueError(
-                "The lattice constant 'a' in [m] for plotting bands in [eV] is required."
-            )
+                "The lattice constant 'a' in [m] for plotting bands in [eV] is required.")
         else:
             # Conversion from dimensionless units to eV
             conv = from_freq_to_e(a)
@@ -114,8 +113,7 @@ def bands(gme,
         if (vert_symm == None) or (vert_symm.lower() in {"odd", "even"}):
             if len(gme.freqs_im) == 0:
                 gme.run_im()
-            Q = _calculate_Q(gme.freqs.flatten(),
-                             np.array(gme.freqs_im).flatten())
+            Q = _calculate_Q(gme.freqs.flatten(), np.array(gme.freqs_im).flatten())
             Q_max = np.max(Q[Q < Q_clip])
 
             p = ax.scatter(X.flatten(),
@@ -126,18 +124,14 @@ def bands(gme,
                            norm=mpl.colors.LogNorm(vmax=Q_max),
                            edgecolors=markeredgecolor,
                            linewidth=markeredgewidth)
-            plt.colorbar(p,
-                         ax=ax,
-                         label="Radiative quality factor",
-                         extend="max")
+            plt.colorbar(p, ax=ax, label="Radiative quality factor", extend="max")
             ax.set_ylim(bottom=0.0, top=conv * gme.freqs[:].max())
 
         elif vert_symm.lower() == "both":
             if show_symmetry == True:
                 if len(gme.freqs_im) == 0:
                     gme.run_im()
-                Q = _calculate_Q(gme.freqs.flatten(),
-                                 np.array(gme.freqs_im).flatten())
+                Q = _calculate_Q(gme.freqs.flatten(), np.array(gme.freqs_im).flatten())
                 Q_max = np.max(Q[Q < Q_clip])
                 edgecolors = mpl.cm.get_cmap('bwr')(
                     (np.asarray(gme.kz_symms).flatten() + 1) / 2)
@@ -150,17 +144,13 @@ def bands(gme,
                                norm=mpl.colors.LogNorm(vmax=Q_max),
                                edgecolors=edgecolors,
                                linewidth=markeredgewidth)
-                plt.colorbar(p,
-                             ax=ax,
-                             label="Radiative quality factor",
-                             extend="max")
+                plt.colorbar(p, ax=ax, label="Radiative quality factor", extend="max")
                 ax.set_ylim(bottom=0.0, top=conv * gme.freqs[:].max())
 
             else:
                 if len(gme.freqs_im) == 0:
                     gme.run_im()
-                Q = _calculate_Q(gme.freqs.flatten(),
-                                 np.array(gme.freqs_im).flatten())
+                Q = _calculate_Q(gme.freqs.flatten(), np.array(gme.freqs_im).flatten())
                 Q_max = np.max(Q[Q < Q_clip])
 
                 p = ax.scatter(X.flatten(),
@@ -171,10 +161,7 @@ def bands(gme,
                                norm=mpl.colors.LogNorm(vmax=Q_max),
                                edgecolors=markeredgecolor,
                                linewidth=markeredgewidth)
-                plt.colorbar(p,
-                             ax=ax,
-                             label="Radiative quality factor",
-                             extend="max")
+                plt.colorbar(p, ax=ax, label="Radiative quality factor", extend="max")
                 ax.set_ylim(bottom=0.0, top=conv * gme.freqs[:].max())
 
     else:
@@ -353,13 +340,7 @@ def pol_bands(pol,
     return ax
 
 
-def _plot_eps(eps_r,
-              clim=None,
-              ax=None,
-              extent=None,
-              cmap='Greys',
-              cbar=False,
-              cax=None):
+def _plot_eps(eps_r, clim=None, ax=None, extent=None, cmap='Greys', cbar=False, cax=None):
 
     if ax is None:
         fig, ax = plt.subplots(1, constrained_layout=True)
@@ -483,13 +464,7 @@ def eps_xz(phc,
     extent = [xgrid[0], xgrid[-1], zgrid[0], zgrid[-1]]
 
     if plot:
-        _plot_eps(eps_r,
-                  clim=clim,
-                  ax=ax,
-                  extent=extent,
-                  cbar=cbar,
-                  cmap=cmap,
-                  cax=cax)
+        _plot_eps(eps_r, clim=clim, ax=ax, extent=extent, cbar=cbar, cmap=cmap, cax=cax)
 
     return eps_r
 
@@ -550,13 +525,7 @@ def eps_xy(phc,
     extent = [xgrid[0], xgrid[-1], ygrid[0], ygrid[-1]]
 
     if plot:
-        _plot_eps(eps_r,
-                  clim=clim,
-                  ax=ax,
-                  extent=extent,
-                  cbar=cbar,
-                  cmap=cmap,
-                  cax=cax)
+        _plot_eps(eps_r, clim=clim, ax=ax, extent=extent, cbar=cbar, cmap=cmap, cax=cax)
 
     return eps_r
 
@@ -617,13 +586,7 @@ def eps_yz(phc,
     extent = [ygrid[0], ygrid[-1], zgrid[0], zgrid[-1]]
 
     if plot:
-        _plot_eps(eps_r,
-                  clim=clim,
-                  ax=ax,
-                  extent=extent,
-                  cbar=cbar,
-                  cmap=cmap,
-                  cax=cax)
+        _plot_eps(eps_r, clim=clim, ax=ax, extent=extent, cbar=cbar, cmap=cmap, cax=cax)
 
     return eps_r
 
@@ -661,10 +624,7 @@ def shapes(layer, ax=None, npts=101, color='k', lw=1, pad=True):
             ax.plot(shape.x_edges, shape.y_edges, c=color, lw=lw)
             if pad == True:
                 for (x_p, y_p) in xy_p:
-                    ax.plot(shape.x_edges + x_p,
-                            shape.y_edges + y_p,
-                            c=color,
-                            lw=lw)
+                    ax.plot(shape.x_edges + x_p, shape.y_edges + y_p, c=color, lw=lw)
     ax.set_xlim(xext)
     ax.set_ylim(yext)
     ax.set_aspect('equal')
@@ -774,10 +734,7 @@ def structure(struct,
     if gridspec is None and fig is None:
         fig = plt.figure(constrained_layout=True, figsize=figsize)
         if cbar == False:
-            gs = mpl.gridspec.GridSpec(len(ars),
-                                       1,
-                                       figure=fig,
-                                       height_ratios=ars)
+            gs = mpl.gridspec.GridSpec(len(ars), 1, figure=fig, height_ratios=ars)
         else:
             gs = mpl.gridspec.GridSpec(len(ars),
                                        2,
@@ -790,9 +747,8 @@ def structure(struct,
         else:
             gs = mpl.gridspec.GridSpecFromSubplotSpec(len(ars), 2, gridspec)
     else:
-        raise ValueError(
-            "Parameters gridspec and fig should be both specified "
-            "or both unspecified")
+        raise ValueError("Parameters gridspec and fig should be both specified "
+                         "or both unspecified")
     axind = 0
 
     if xz == True:
@@ -833,8 +789,7 @@ def structure(struct,
         for indl in range(N_layers):
             zpos = (all_layers[indl].z_max + all_layers[indl].z_min) / 2
             ax.append(fig.add_subplot(gs[axind + indl, 0]))
-            cax = None if cbar == False else fig.add_subplot(gs[axind + indl,
-                                                                1])
+            cax = None if cbar == False else fig.add_subplot(gs[axind + indl, 1])
             eps_xy(phc,
                    z=zpos,
                    ax=ax[indl],
@@ -907,13 +862,11 @@ def eps_ft(struct,
         str_type = 'pwe'
 
     else:
-        raise ValueError("'struct' should be a 'PlaneWaveExp', a "
-                         "'GuidedModeExp' ")
+        raise ValueError("'struct' should be a 'PlaneWaveExp', a " "'GuidedModeExp' ")
 
     if cladding == True:
         if str_type == 'pwe':
-            print("Warning: ignoring 'cladding=True' for PlaneWaveExp "
-                  "structure.")
+            print("Warning: ignoring 'cladding=True' for PlaneWaveExp " "structure.")
             all_layers = [struct.layer]
         else:
             all_layers = [struct.phc.claddings[0]
@@ -953,9 +906,8 @@ def eps_ft(struct,
         else:
             gs = mpl.gridspec.GridSpecFromSubplotSpec(len(ars), 2, gridspec)
     else:
-        raise ValueError(
-            "Parameters gridspec and fig should be both specified "
-            "or both unspecified")
+        raise ValueError("Parameters gridspec and fig should be both specified "
+                         "or both unspecified")
 
     (eps_min, eps_max) = (all_layers[0].eps_b, all_layers[0].eps_b)
     ims = []
@@ -1079,16 +1031,15 @@ def pot_ft(struct,
         else:
             gs = mpl.gridspec.GridSpecFromSubplotSpec(len(ars), 2, gridspec)
     else:
-        raise ValueError(
-            "Parameters gridspec and fig should be both specified "
-            "or both unspecified")
+        raise ValueError("Parameters gridspec and fig should be both specified "
+                         "or both unspecified")
 
     ims = []
     ax = []
     eps_min = 0
     eps_max = np.abs(struct.V_shapes)
-    for (indl, layer) in enumerate(
-            all_layers):  # Actually there is only one layer in the exc
+    for (indl,
+         layer) in enumerate(all_layers):  # Actually there is only one layer in the exc
         ax.append(fig.add_subplot(gs[indl, :]))
         # We use the same plotting function of the permettivity, but we calculate the FT of the potential
         (eps_r, xgrid, ygrid) = struct.get_pot_xy(Nx=Nx, Ny=Ny)
@@ -1197,8 +1148,7 @@ def field(struct,
 
     # Get the field fourier components
     if (x is None and y is None and z is None
-            and str_type == 'pwe') or (z is not None and x is None
-                                       and y is None):
+            and str_type == 'pwe') or (z is not None and x is None and y is None):
 
         zval = 0. if z == None else z
         (fi, grid1, grid2) = struct.get_field_xy(field,
@@ -1210,12 +1160,11 @@ def field(struct,
                                                  Ny=N2)
         if eps == True:
             if str_type == 'pwe':
-                epsr = struct.layer.get_eps(np.meshgrid(grid1,
-                                                        grid2)).squeeze()
+                epsr = struct.layer.get_eps(np.meshgrid(grid1, grid2)).squeeze()
 
             else:
-                epsr = struct.phc.get_eps(
-                    np.meshgrid(grid1, grid2, np.array(z))).squeeze()
+                epsr = struct.phc.get_eps(np.meshgrid(grid1, grid2,
+                                                      np.array(z))).squeeze()
         pl, o, v = 'xy', 'z', zval
         if periodic == False:
             kenv = np.exp(1j * grid1 * struct.kpoints[0, kind] +
@@ -1234,8 +1183,8 @@ def field(struct,
                                                  Ny=N1,
                                                  Nz=N2)
         if eps == True:
-            epsr = struct.phc.get_eps(np.meshgrid(
-                np.array(x), grid1, grid2)).squeeze().transpose()
+            epsr = struct.phc.get_eps(np.meshgrid(np.array(x), grid1,
+                                                  grid2)).squeeze().transpose()
         pl, o, v = 'yz', 'x', x
         if periodic == False:
             kenv = np.exp(1j * grid1 * struct.kpoints[1, kind] +
@@ -1253,8 +1202,8 @@ def field(struct,
                                                  Nx=N1,
                                                  Nz=N2)
         if eps == True:
-            epsr = struct.phc.get_eps(np.meshgrid(
-                grid1, np.array(y), grid2)).squeeze().transpose()
+            epsr = struct.phc.get_eps(np.meshgrid(grid1, np.array(y),
+                                                  grid2)).squeeze().transpose()
         pl, o, v = 'xz', 'y', y
         if periodic == False:
             kenv = np.exp(1j * grid1 * struct.kpoints[0, kind] +
@@ -1288,12 +1237,7 @@ def field(struct,
         else:
             raise ValueError("'val' can be 'im', 're', or 'abs'")
 
-        im = ax.imshow(Z,
-                       extent=extent,
-                       cmap=cmap,
-                       vmin=vmin,
-                       vmax=vmax,
-                       origin='lower')
+        im = ax.imshow(Z, extent=extent, cmap=cmap, vmin=vmin, vmax=vmax, origin='lower')
 
         if eps == True:
             lcs = 'k' if val.lower() in ['re', 'im'] else 'w'
@@ -1376,12 +1320,7 @@ def wavef(struct, kind, mind, val="abs2", N1=100, N2=200, cbar=True):
     else:
         raise ValueError("'val' can be 'im', 're', or 'abs2'")
 
-    im = axs.imshow(Z,
-                    extent=extent,
-                    cmap=cmap,
-                    vmin=vmin,
-                    vmax=vmax,
-                    origin="lower")
+    im = axs.imshow(Z, extent=extent, cmap=cmap, vmin=vmin, vmax=vmax, origin="lower")
     if cbar == True:
         f1.colorbar(im, ax=axs, shrink=0.5)
     title_str = ""
@@ -1439,8 +1378,7 @@ def calculate_x(kpoints, num_eig, k_units):
         X0 = np.arange(len(struc.kpoints[0, :]))
     """
 
-    mod_k = np.sqrt(np.square(kpoints[0, :]) +
-                    np.square(kpoints[1, :])) / 2 / np.pi
+    mod_k = np.sqrt(np.square(kpoints[0, :]) + np.square(kpoints[1, :])) / 2 / np.pi
 
     delta_k = np.diff(kpoints, axis=-1)
     mod_delta_k = np.sqrt(np.square(delta_k[0, :]) + np.square(delta_k[1, :]))
@@ -1495,9 +1433,8 @@ def _calculate_LL(kpoints, phc, conv):
     """
 
     eps_clad = [phc.claddings[0].eps_avg, phc.claddings[-1].eps_avg]
-    vec_LL = conv * np.sqrt(
-        np.square(kpoints[0, :]) +
-        np.square(kpoints[1, :])) / 2 / np.pi / np.sqrt(max(eps_clad))
+    vec_LL = conv * np.sqrt(np.square(kpoints[0, :]) +
+                            np.square(kpoints[1, :])) / 2 / np.pi / np.sqrt(max(eps_clad))
 
     return vec_LL
 
@@ -1522,8 +1459,7 @@ def visualize_far_field(gme, mind: int, cladding='u'):
     """
 
     if (cladding != 'u' and cladding != 'l'):
-        raise ValueError(
-            "cladding can be 'u' for upper or 'l' for lower cladding")
+        raise ValueError("cladding can be 'u' for upper or 'l' for lower cladding")
 
     # Calculate far field
     (rad_coups, rad_gvecs) = gme.get_farfield(mind=mind, cladding=cladding)
